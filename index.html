@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FleetView Berlin</title>
+<meta name="description" content="Internal research tool: where fleet-oriented businesses are located across Berlin, using live OpenStreetMap data.">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <button class="btn ghost sm" id="railtoggle" title="Filters" style="display:none">☰</button>
+    <div class="brand">
+      <span class="t">Berlin Fleet Ecosystem</span>
+      <span class="s">Where fleet-oriented businesses are located, how they differ, and where further research may be useful.</span>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn sm" id="btn-explain">Explain this map</button>
+    <button class="btn sm" id="btn-methodology">Methodology</button>
+    <button class="btn sm" id="btn-sources">Data sources</button>
+    <button class="btn sm" id="btn-csv" title="Export the filtered set as CSV">Export CSV</button>
+    <button class="btn sm" id="btn-snapshot" title="Save a reproducible JSON snapshot with fetch date">Save snapshot</button>
+    <button class="btn sm primary" id="btn-refresh" title="Re-query OpenStreetMap">↻ Refresh</button>
+    <div class="status"><span class="dot" id="status-dot"></span><span id="status-text">Starting…</span></div>
+  </header>
+
+  <div class="body">
+    <aside class="rail" id="rail"><div class="scroll" id="rail-scroll"></div></aside>
+
+    <div class="mapwrap">
+      <div id="map"></div>
+      <div class="dash" id="dash"></div>
+      <div class="searchbar">
+        <div class="row">
+          <input id="search" placeholder="Ask in plain language — e.g. “logistics companies in the east with high fleet potential”">
+          <button class="go" id="btn-go">Search</button>
+        </div>
+        <div class="interp" id="interp" style="display:none"></div>
+      </div>
+      <div class="legend" id="legend"></div>
+      <div class="overlay" id="overlay"></div>
+    </div>
+
+    <aside class="side" id="side"><div class="scroll"></div></aside>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <div class="mhead"><h2 id="modal-title"></h2><div style="flex:1"></div><button class="btn ghost sm" onclick="closeModal()">✕</button></div>
+    <div class="mbody" id="modal-body"></div>
+  </div>
+</div>
+
+<input type="file" id="snapfile" accept="application/json" style="display:none">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
