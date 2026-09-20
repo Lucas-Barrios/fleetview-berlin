@@ -1,0 +1,258 @@
+/* ==========================================================================
+   FleetView Berlin — research tool styles
+   Design intent: modern data-research platform + lightweight GIS.
+   Restrained palette, subtle borders, compact cards, map-dominant layout.
+   ========================================================================== */
+
+:root{
+  --bg:#f6f7f9;
+  --panel:#ffffff;
+  --ink:#151a21;
+  --ink-2:#5b6673;
+  --ink-3:#8a95a3;
+  --line:#e4e8ee;
+  --line-2:#eef1f5;
+  --accent:#1f5fd6;
+  --accent-weak:#e8f0fe;
+  --hi:#d1462f;      /* high fleet likelihood */
+  --med:#e0912f;     /* medium */
+  --lo:#5b8a72;      /* low */
+  --unk:#9aa4b1;     /* unknown */
+  --shadow:0 1px 2px rgba(16,24,40,.06),0 4px 14px rgba(16,24,40,.06);
+  --radius:10px;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;font-family:var(--sans);color:var(--ink);background:var(--bg);
+  font-size:13.5px;line-height:1.45;-webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit;cursor:pointer}
+h1,h2,h3,h4{margin:0;font-weight:650;letter-spacing:-.01em}
+.muted{color:var(--ink-2)}
+.tiny{font-size:11.5px}
+.mono{font-family:var(--mono)}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ---- App shell ---------------------------------------------------------- */
+.app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+
+header.topbar{
+  display:flex;align-items:center;gap:16px;padding:10px 16px;
+  background:var(--panel);border-bottom:1px solid var(--line);z-index:20;
+}
+.brand{display:flex;flex-direction:column;line-height:1.15}
+.brand .t{font-size:15px;font-weight:700}
+.brand .s{font-size:11.5px;color:var(--ink-2)}
+.topbar .spacer{flex:1}
+.topbar .status{
+  font-size:11.5px;color:var(--ink-2);display:flex;align-items:center;gap:6px;
+  background:var(--line-2);padding:4px 9px;border-radius:20px;
+}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--unk)}
+.dot.ok{background:#2f9e5f}.dot.busy{background:var(--med);animation:pulse 1s infinite}
+.dot.err{background:var(--hi)}
+@keyframes pulse{50%{opacity:.35}}
+
+.btn{
+  border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  padding:6px 11px;border-radius:8px;font-size:12.5px;font-weight:550;
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+}
+.btn:hover{border-color:#cbd3de;background:#fbfcfe}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:#1a53bd}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--ink-2)}
+.btn.ghost:hover{background:var(--line-2)}
+.btn.sm{padding:4px 8px;font-size:11.5px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* ---- Body: left rail + map + right panel -------------------------------- */
+.body{flex:1;display:flex;min-height:0}
+.rail{
+  width:288px;flex:none;background:var(--panel);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;min-height:0;
+}
+.rail .scroll{overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:14px}
+.mapwrap{flex:1;position:relative;min-width:0;background:#e9edf1}
+#map{position:absolute;inset:0}
+.side{
+  width:0;flex:none;background:var(--panel);border-left:1px solid var(--line);
+  transition:width .16s ease;overflow:hidden;
+}
+.side.open{width:340px}
+.side .scroll{width:340px;height:100%;overflow-y:auto;padding:14px}
+
+/* ---- Rail sections ------------------------------------------------------ */
+.section{border:1px solid var(--line);border-radius:var(--radius);background:var(--panel)}
+.section>.head{
+  display:flex;align-items:center;gap:8px;padding:9px 11px;cursor:pointer;
+  font-weight:600;font-size:12.5px;user-select:none;
+}
+.section>.head .chev{margin-left:auto;color:var(--ink-3);transition:transform .15s}
+.section.collapsed>.head .chev{transform:rotate(-90deg)}
+.section>.content{padding:0 11px 11px;display:flex;flex-direction:column;gap:9px}
+.section.collapsed>.content{display:none}
+.section .label{font-size:11px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+
+.checkline{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:1px 0}
+.checkline input{margin:0}
+.checkline .sw{width:9px;height:9px;border-radius:2px;flex:none}
+.checkline .ct{margin-left:auto;color:var(--ink-3);font-size:11px;font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{
+  border:1px solid var(--line);border-radius:16px;padding:3px 9px;font-size:11.5px;
+  background:var(--panel);color:var(--ink-2);
+}
+.chip.on{background:var(--accent-weak);border-color:#b9d0f7;color:var(--accent)}
+
+/* ---- Map mode selector -------------------------------------------------- */
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.mode{
+  border:1px solid var(--line);border-radius:8px;padding:7px 8px;font-size:11.5px;
+  background:var(--panel);text-align:left;line-height:1.2;
+}
+.mode .mt{font-weight:600;display:block}
+.mode .md{color:var(--ink-3);font-size:10.5px}
+.mode.on{border-color:var(--accent);background:var(--accent-weak)}
+.mode.on .mt{color:var(--accent)}
+
+/* ---- Dashboard (floating over map, top-left) ---------------------------- */
+.dash{
+  position:absolute;top:12px;left:12px;z-index:600;display:flex;gap:8px;flex-wrap:nowrap;
+  max-width:calc(100% - 24px);overflow-x:auto;padding-bottom:2px;
+}
+.dash::-webkit-scrollbar{height:5px}
+.dash::-webkit-scrollbar-thumb{background:#cbd3de;border-radius:3px}
+.stat{
+  background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:7px 11px;
+  box-shadow:var(--shadow);cursor:pointer;min-width:78px;
+}
+.stat:hover{border-color:#cbd3de}
+.stat .v{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.05}
+.stat .k{font-size:10.5px;color:var(--ink-2);margin-top:1px}
+.stat .v small{font-size:12px;font-weight:600}
+
+/* ---- Search / NL bar (top center over map) ------------------------------ */
+.searchbar{
+  position:absolute;top:66px;left:50%;transform:translateX(-50%);z-index:650;
+  width:min(560px,64%);
+}
+.searchbar .row{display:flex;gap:0;box-shadow:var(--shadow);border-radius:9px;overflow:hidden;border:1px solid var(--line)}
+.searchbar input{
+  flex:1;border:none;padding:9px 12px;font-size:13px;outline:none;background:var(--panel);color:var(--ink);
+}
+.searchbar .go{border:none;background:var(--accent);color:#fff;padding:0 14px;font-weight:600}
+.interp{
+  margin-top:6px;background:var(--panel);border:1px solid var(--line);border-radius:9px;
+  padding:9px 11px;box-shadow:var(--shadow);font-size:12px;
+}
+.interp .q{color:var(--ink-2)}
+.interp .kv{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0}
+.interp .tag{background:var(--accent-weak);color:var(--accent);border-radius:6px;padding:2px 7px;font-size:11.5px}
+.interp .actions{display:flex;gap:6px;margin-top:4px}
+.interp .warn{color:var(--med);font-size:11px;margin-top:4px}
+
+/* ---- Legend (bottom-left) ---------------------------------------------- */
+.legend{
+  position:absolute;bottom:16px;left:12px;z-index:600;background:var(--panel);
+  border:1px solid var(--line);border-radius:9px;padding:9px 11px;box-shadow:var(--shadow);
+  font-size:11.5px;max-width:230px;
+}
+.legend h4{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-2);margin-bottom:6px}
+.legend .li{display:flex;align-items:center;gap:7px;padding:1px 0}
+.legend .li .sw{width:11px;height:11px;border-radius:50%;flex:none;border:1px solid rgba(0,0,0,.15)}
+.legend .grad{height:9px;border-radius:5px;margin:3px 0}
+.legend .scale{display:flex;justify-content:space-between;color:var(--ink-3);font-size:10px}
+
+/* map control tweaks */
+.leaflet-container{background:#e9edf1;font:inherit}
+.leaflet-bar a{color:var(--ink)}
+.mapbtn{
+  position:absolute;z-index:600;background:var(--panel);border:1px solid var(--line);
+  border-radius:8px;box-shadow:var(--shadow);padding:6px 10px;font-size:12px;font-weight:550;
+}
+
+/* ---- Detail / compare panel -------------------------------------------- */
+.side h3{font-size:14px;margin-bottom:2px}
+.side .close{position:absolute;top:10px;right:12px}
+.kv-list{display:flex;flex-direction:column;gap:0;margin-top:10px}
+.kv-list .r{display:flex;gap:10px;padding:6px 0;border-top:1px solid var(--line-2);font-size:12.5px}
+.kv-list .r:first-child{border-top:none}
+.kv-list .r .k{width:104px;flex:none;color:var(--ink-2)}
+.kv-list .r .val{flex:1}
+.badge{display:inline-flex;align-items:center;gap:5px;border-radius:6px;padding:2px 7px;font-size:11px;font-weight:600}
+.badge .sw{width:8px;height:8px;border-radius:50%}
+.badge.hi{background:#fbeae6;color:#a5301c}
+.badge.med{background:#fbf0dd;color:#8a5a10}
+.badge.lo{background:#e7f0ec;color:#3c6553}
+.badge.unk{background:#eef1f5;color:#5b6673}
+.quality{display:inline-block;border-radius:5px;padding:1px 6px;font-size:10.5px;font-weight:600;border:1px solid}
+.q-verified{color:#2f7a4f;border-color:#bfe0cd;background:#eef8f1}
+.q-estimated{color:#8a5a10;border-color:#e7d3a6;background:#fbf5e8}
+.q-inferred{color:#5b53a8;border-color:#cfcae9;background:#f2f0fb}
+.q-unknown{color:#5b6673;border-color:#dfe4ea;background:#f2f4f7}
+.evidence{background:var(--line-2);border-radius:8px;padding:9px 10px;font-size:12px;margin-top:10px}
+.evidence .ttl{font-weight:600;margin-bottom:3px}
+
+/* ---- Bars (distributions / comparison) --------------------------------- */
+.bars{display:flex;flex-direction:column;gap:5px;margin-top:6px}
+.bar{display:flex;align-items:center;gap:7px;font-size:11.5px}
+.bar .nm{width:96px;flex:none;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .track{flex:1;background:var(--line-2);border-radius:4px;height:10px;overflow:hidden}
+.bar .fill{height:100%;background:var(--accent);border-radius:4px}
+.bar .n{width:34px;text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cmp .col h4{font-size:12px;margin-bottom:2px}
+.cmp .col .big{font-size:20px;font-weight:700}
+
+/* ---- Modal (methodology / sources / explain) --------------------------- */
+.modal-bg{position:fixed;inset:0;background:rgba(16,24,40,.4);z-index:2000;display:none;align-items:center;justify-content:center;padding:24px}
+.modal-bg.open{display:flex}
+.modal{background:var(--panel);border-radius:14px;max-width:760px;width:100%;max-height:86vh;overflow-y:auto;box-shadow:0 20px 60px rgba(16,24,40,.3)}
+.modal .mhead{position:sticky;top:0;background:var(--panel);display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);z-index:1}
+.modal .mhead h2{font-size:16px}
+.modal .mbody{padding:16px 18px}
+.modal table{width:100%;border-collapse:collapse;font-size:12px}
+.modal th,.modal td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line-2);vertical-align:top}
+.modal th{color:var(--ink-2);font-weight:600;position:sticky;top:0}
+.callout{background:var(--accent-weak);border:1px solid #cfe0fb;border-radius:9px;padding:10px 12px;font-size:12.5px;margin:10px 0}
+.callout.warn{background:#fdf3e7;border-color:#f0d9b5}
+
+/* ---- Overlays (loading / error / empty) -------------------------------- */
+.overlay{
+  position:absolute;inset:0;z-index:800;display:none;align-items:center;justify-content:center;
+  background:rgba(233,237,241,.86);backdrop-filter:blur(1px);
+}
+.overlay.show{display:flex}
+.overlay .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:22px 24px;max-width:440px;text-align:center}
+.overlay .card h3{font-size:15px;margin-bottom:6px}
+.overlay .card p{color:var(--ink-2);font-size:12.5px;margin:0 0 12px}
+.spinner{width:26px;height:26px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.overlay .actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+
+/* research-opportunity weight sliders */
+.weights{display:flex;flex-direction:column;gap:8px}
+.weights .w{display:flex;align-items:center;gap:8px;font-size:12px}
+.weights .w label{width:118px;flex:none;color:var(--ink-2)}
+.weights .w input[type=range]{flex:1}
+.weights .w .val{width:30px;text-align:right;font-variant-numeric:tabular-nums}
+.formula{font-family:var(--mono);font-size:11px;background:var(--line-2);border-radius:6px;padding:7px 9px;color:var(--ink-2);margin-top:2px}
+
+.leaflet-popup-content{margin:9px 11px;font-size:12.5px}
+.leaflet-popup-content .pt{font-weight:650}
+.hullpath{cursor:pointer}
+
+@media (max-width:900px){
+  .rail{position:absolute;z-index:900;height:100%;box-shadow:var(--shadow);transform:translateX(-100%);transition:transform .18s}
+  .rail.open{transform:none}
+  .dash{max-width:calc(100% - 24px)}
+  .searchbar{width:calc(100% - 24px)}
+  .side.open{width:100%;position:absolute;right:0;height:100%;z-index:950}
+  .side .scroll{width:100%}
+}
