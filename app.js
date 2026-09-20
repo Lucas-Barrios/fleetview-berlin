@@ -142,7 +142,7 @@ function buildOverpassQuery(){
   const seen=new Set();
   for(const t of TAXONOMY) for(const [k,v] of t.sel){
     const key=k+'='+v; if(seen.has(key)) continue; seen.add(key);
-    lines.push(`  nwr["${k}"="${v}"](${s},${w},${n},${e});`);
+    lines.push(`  nw["${k}"="${v}"](${s},${w},${n},${e});`); // nodes+ways only (relations are rare here and slow)
   }
   return `[out:json][timeout:90];\n(\n${lines.join('\n')}\n);\nout center tags;`;
 }
@@ -426,10 +426,10 @@ function initMap(){
   MAP=L.map('map',{zoomControl:false,preferCanvas:true}).setView(CONFIG.berlinCenter,11);
   L.control.zoom({position:'topright'}).addTo(MAP);
   L.control.scale({imperial:false,position:'bottomright'}).addTo(MAP);
-  // Clean analytics-style basemap (CARTO Positron). Real tiles, loaded in the browser.
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
-    subdomains:'abcd',maxZoom:19,
-    attribution:'&copy; OpenStreetMap contributors &copy; CARTO'
+  // Key-free basemap (OpenStreetMap standard). CARTO's basemaps now require an API key.
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    maxZoom:19,
+    attribution:'&copy; OpenStreetMap contributors'
   }).addTo(MAP);
   boundaryLayer=L.geoJSON(BEZIRKE,{
     style:()=>({color:'#66707d',weight:1,opacity:.55,fill:true,fillColor:'#000',fillOpacity:0}),
@@ -890,7 +890,8 @@ function loadSnapshotFile(file){ const r=new FileReader();
 function showOverlay(html){ $('#overlay').innerHTML=`<div class="card">${html}</div>`; $('#overlay').classList.add('show'); }
 function hideOverlay(){ $('#overlay').classList.remove('show'); }
 function showLoading(msg){ showOverlay(`<div class="spinner"></div><h3>Loading Berlin fleet data</h3><p id="load-msg">${msg||''}</p>
-  <p class="tiny muted">Querying OpenStreetMap live from your browser. First load can take 10–40s.</p>`); }
+  <p class="tiny muted">Querying OpenStreetMap live from your browser. First load can take 10–40s.</p>
+  <div id="load-elapsed" class="tiny muted"></div>`); }
 function showError(msg){ setStatus('err','Data error');
   showOverlay(`<h3>Couldn’t load live data</h3><p>${escapeHtml(msg)}</p>
    <p class="tiny muted">Overpass may be busy, rate-limited, or blocked on your network. You can retry, or load a previously saved snapshot.</p>
@@ -904,12 +905,14 @@ function setStatus(kind,text){ $('#status-dot').className='dot '+(kind||''); $('
 
 window.startFetch=async ()=>{
   hideInterp(); setStatus('busy','Fetching…'); showLoading('Building query…');
+  const t0=Date.now();
+  const iv=setInterval(()=>{ const el=$('#load-elapsed'); if(el) el.textContent=`${((Date.now()-t0)/1000)|0}s elapsed`; },500);
   try{
     const {rows,fetchedAt,endpoint,rawCount,query}=await fetchOverpass((m)=>{ const el=$('#load-msg'); if(el) el.textContent=m; });
-    if(!rows.length){ showEmpty(); return; }
+    if(!rows.length){ clearInterval(iv); showEmpty(); return; }
     STATE.all=rows; STATE.meta={fetchedAt,endpoint,rawCount,query,source:'Overpass (live)'};
-    onDataReady();
-  }catch(e){ showError(e.message||String(e)); }
+    clearInterval(iv); onDataReady();
+  }catch(e){ clearInterval(iv); showError(e.message||String(e)); }
 };
 function onDataReady(){
   applyFilters(); buildRail(); renderMode(); renderDashboard();
