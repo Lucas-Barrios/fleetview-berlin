@@ -89,9 +89,9 @@ const TAXONOMY = [
 const LIKELIHOODS = ['High','Medium','Low','Unknown'];
 const LIKE_WEIGHT = { High:1.0, Medium:0.6, Low:0.25, Unknown:0.0 };
 const LIKE_CLASS  = { High:'hi', Medium:'med', Low:'lo', Unknown:'unk' };
-const LIKE_COLOR  = { High:'#d1462f', Medium:'#e0912f', Low:'#5b8a72', Unknown:'#9aa4b1' };
-const CAT_COLORS = ['#1f5fd6','#d1462f','#2f9e5f','#8a5ad6','#e0912f','#0f9bb0',
-                    '#c0407a','#5b8a72','#7a6a3a','#3a6ea8','#b0562f'];
+const LIKE_COLOR  = { High:'#e5484d', Medium:'#f59e0b', Low:'#12a594', Unknown:'#8b97a7' };
+const CAT_COLORS = ['#2563eb','#e5484d','#12a594','#8b5cf6','#f59e0b','#0891b2',
+                    '#db2777','#65a30d','#b45309','#0d9488','#dc2626'];
 const SIZE_CLASSES = ['1–9','10–49','50–249','250–999','1,000+','Unknown'];
 
 /* ===== 2. GEO HELPERS ====================================================== */
@@ -426,11 +426,18 @@ function initMap(){
   MAP=L.map('map',{zoomControl:false,preferCanvas:true}).setView(CONFIG.berlinCenter,11);
   L.control.zoom({position:'topright'}).addTo(MAP);
   L.control.scale({imperial:false,position:'bottomright'}).addTo(MAP);
-  // Key-free basemap (OpenStreetMap standard). CARTO's basemaps now require an API key.
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
-    maxZoom:19,
-    attribution:'&copy; OpenStreetMap contributors'
+  // Clean grey analytics basemap (Esri Light Gray) — key-free. Falls back to OSM if it errors.
+  const esriBase=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',{
+    maxZoom:19, maxNativeZoom:16, attribution:'Tiles &copy; Esri'
   }).addTo(MAP);
+  const esriRef=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',{
+    maxZoom:19, maxNativeZoom:16, opacity:.85
+  }).addTo(MAP);
+  let tilesSwapped=false;
+  esriBase.on('tileerror',()=>{ if(tilesSwapped) return; tilesSwapped=true;
+    MAP.removeLayer(esriBase); MAP.removeLayer(esriRef);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(MAP);
+  });
   boundaryLayer=L.geoJSON(BEZIRKE,{
     style:()=>({color:'#66707d',weight:1,opacity:.55,fill:true,fillColor:'#000',fillOpacity:0}),
     onEachFeature:(f,layer)=>{ layer.on('click',()=>openAreaPanel(f.properties.name));
@@ -442,7 +449,7 @@ function initMap(){
     iconCreateFunction:(cl)=>{ const n=cl.getChildCount();
       const size=n<10?30:n<50?36:n<200?44:52;
       return L.divIcon({html:`<div style="width:${size}px;height:${size}px;line-height:${size}px;border-radius:50%;
-        background:rgba(31,95,214,.16);border:1.5px solid rgba(31,95,214,.5);color:#123;font-weight:600;
+        background:rgba(37,99,235,.16);border:1.5px solid rgba(37,99,235,.55);color:#123;font-weight:650;
         text-align:center;font-size:12px">${n}</div>`,className:'',iconSize:[size,size]});
     }});
   heatLayer=new HeatLayer(()=>heatPoints());
