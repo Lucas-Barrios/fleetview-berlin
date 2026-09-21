@@ -5,11 +5,11 @@
    the tool can later be lifted into a Next.js/React app (each block ~ a module).
 
    Data sources (real):
-     - Businesses: OpenStreetMap via the Overpass API, queried live IN THE
-       BROWSER (the sandbox that generated this file cannot reach Overpass;
-       your browser can). Nothing is fabricated. Unknown stays "Unknown".
-     - Boundaries: Berlin Bezirke, © GeoportalBerlin / OSM contributors,
-       simplified for display (window.BEZIRKE, injected above).
+     - Businesses: OpenStreetMap via the Overpass API. On load the app uses a
+       pre-fetched snapshot (berlin-snapshot.json) for an instant, reliable
+       start, and can re-query Overpass live on demand (Refresh). Nothing is
+       fabricated. Unknown stays "Unknown".
+     - Boundaries: Berlin Bezirke, © GeoportalBerlin / OSM contributors.
    ============================================================================ */
 'use strict';
 
@@ -23,7 +23,8 @@ const CONFIG = {
   ],
   berlinCenter: [52.5155, 13.4050],
   berlinBBox: [52.338, 13.088, 52.675, 13.761], // S,W,N,E
-  timeoutMs: 90000,
+  timeoutMs: 45000,
+  snapshotUrl: 'berlin-snapshot.json', // pre-fetched dataset for instant load; falls back to a live query if absent
   // Used only by the hosted build; the offline build injects window.BEZIRKE directly.
   boundaryUrl: 'https://raw.githubusercontent.com/m-hoerz/berlin-shapes/master/berliner-bezirke.geojson',
 };
@@ -120,8 +121,15 @@ function pointInFeature(lng,lat,geom){
   if(geom.type==='MultiPolygon') return geom.coordinates.some(test);
   return false;
 }
+let _bezBBox=null;
 function bezirkOf(lat,lng){
-  for(const f of BEZIRKE.features){ if(pointInFeature(lng,lat,f.geometry)) return f.properties.name; }
+  if(!_bezBBox){ _bezBBox=BEZIRKE.features.map(f=>{ var a=[1e9,1e9,-1e9,-1e9];
+    var scan=function(r){ for(var i=0;i<r.length;i++){ var p=r[i]; if(p[0]<a[0])a[0]=p[0]; if(p[1]<a[1])a[1]=p[1]; if(p[0]>a[2])a[2]=p[0]; if(p[1]>a[3])a[3]=p[1]; } };
+    var g=f.geometry; (g.type==='Polygon'?g.coordinates:[].concat.apply([],g.coordinates)).forEach(scan); return a; }); }
+  var F=BEZIRKE.features;
+  for(var i=0;i<F.length;i++){ var b=_bezBBox[i];
+    if(lng<b[0]||lng>b[2]||lat<b[1]||lat>b[3]) continue;            // cheap bbox reject before point-in-polygon
+    if(pointInFeature(lng,lat,F[i].geometry)) return F[i].properties.name; }
   return 'Unknown';
 }
 function convexHull(pts){ // pts=[[lng,lat]...] → hull ring
@@ -138,13 +146,14 @@ const bezirkNames = () => BEZIRKE.features.map(f=>f.properties.name).sort();
 /* ===== 3. DATA LAYER: query build, fetch, parse, classify ================== */
 function buildOverpassQuery(){
   const [s,w,n,e]=CONFIG.berlinBBox;
-  const lines=[];
-  const seen=new Set();
+  const byKey={}; const seen=new Set();
   for(const t of TAXONOMY) for(const [k,v] of t.sel){
     const key=k+'='+v; if(seen.has(key)) continue; seen.add(key);
-    lines.push(`  nw["${k}"="${v}"](${s},${w},${n},${e});`); // nodes+ways only (relations are rare here and slow)
+    (byKey[k]=byKey[k]||[]).push(v);
   }
-  return `[out:json][timeout:90];\n(\n${lines.join('\n')}\n);\nout center tags;`;
+  // One regex statement per key (far fewer statements than one-per-value → faster to plan and run).
+  const lines=Object.keys(byKey).map(k=>`  nw["${k}"~"^(${byKey[k].join('|')})$"](${s},${w},${n},${e});`);
+  return `[out:json][timeout:60];\n(\n${lines.join('\n')}\n);\nout center tags;`;
 }
 function classify(tags){
   for(const t of TAXONOMY) for(const [k,v] of t.sel){
@@ -198,23 +207,23 @@ function parseElements(elements){
 }
 async function fetchOverpass(onStatus){
   const q=buildOverpassQuery();
-  let lastErr;
-  for(let i=0;i<CONFIG.overpassEndpoints.length;i++){
-    const ep=CONFIG.overpassEndpoints[i];
-    onStatus(`Querying OpenStreetMap (endpoint ${i+1}/${CONFIG.overpassEndpoints.length})…`);
-    try{
-      const ctrl=new AbortController();
-      const to=setTimeout(()=>ctrl.abort(), CONFIG.timeoutMs);
-      const res=await fetch(ep,{method:'POST',body:'data='+encodeURIComponent(q),
-        headers:{'Content-Type':'application/x-www-form-urlencoded'},signal:ctrl.signal});
-      clearTimeout(to);
-      if(!res.ok) throw new Error('HTTP '+res.status);
-      const json=await res.json();
-      const rows=parseElements(json.elements||[]);
-      return { rows, fetchedAt:new Date().toISOString(), endpoint:ep, query:q, rawCount:(json.elements||[]).length };
-    }catch(err){ lastErr=err; }
-  }
-  throw lastErr || new Error('All Overpass endpoints failed');
+  onStatus(`Querying OpenStreetMap (${CONFIG.overpassEndpoints.length} mirrors in parallel)…`);
+  // Race every mirror at once; the first success wins, so load time = the fastest mirror,
+  // not the sum of each slow one's timeout.
+  const attempts=CONFIG.overpassEndpoints.map(ep=>{
+    const ctrl=new AbortController();
+    const to=setTimeout(()=>ctrl.abort(), CONFIG.timeoutMs);
+    return fetch(ep,{method:'POST',body:'data='+encodeURIComponent(q),
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},signal:ctrl.signal})
+      .then(res=>{ if(!res.ok) throw new Error('HTTP '+res.status); return res.json(); })
+      .then(json=>{ clearTimeout(to); return {json,ep}; })
+      .catch(err=>{ clearTimeout(to); throw err; });
+  });
+  let winner;
+  try{ winner=await Promise.any(attempts); }
+  catch(agg){ throw new Error('All OpenStreetMap mirrors are busy or unreachable right now'); }
+  const rows=parseElements(winner.json.elements||[]);
+  return { rows, fetchedAt:new Date().toISOString(), endpoint:winner.ep, query:q, rawCount:(winner.json.elements||[]).length };
 }
 
 /* ===== 4. STATE ============================================================ */
@@ -746,8 +755,8 @@ function openDetail(c){
 }
 window.closeSide=()=>$('#side').classList.remove('open');
 window.showTags=(id)=>{ const c=STATE.all.find(x=>x.id===id); if(!c)return;
-  const rows=Object.entries(c.rawTags).map(([k,v])=>`<tr><td class="mono">${escapeHtml(k)}</td><td>${escapeHtml(String(v))}</td></tr>`).join('');
-  openModal('Raw OSM tags — '+c.name, `<p class="tiny muted">Exactly as stored in OpenStreetMap. This is the primary evidence behind every field in the record.</p>
+  const rows=Object.entries(c.rawTags||{}).map(([k,v])=>`<tr><td class="mono">${escapeHtml(k)}</td><td>${escapeHtml(String(v))}</td></tr>`).join('') || '<tr><td colspan=2 class="muted tiny">Raw tags aren’t stored in the cached snapshot — open the OSM link above for the source object.</td></tr>';
+  openModal('Raw OSM tags — '+c.name, `<p class="tiny muted">As stored in OpenStreetMap — the primary evidence behind every field in the record.</p>
     <table><thead><tr><th>key</th><th>value</th></tr></thead><tbody>${rows}</tbody></table>`);
 };
 
@@ -822,10 +831,10 @@ function sourcesHTML(){
   return `<table><thead><tr><th>Dataset</th><th>Detail</th></tr></thead><tbody>
     <tr><td><b>Business locations</b></td><td>OpenStreetMap, via the Overpass API.<br>Organization: OpenStreetMap contributors (ODbL).<br>URL: <a href="https://www.openstreetmap.org" target="_blank" rel="noopener">openstreetmap.org</a> · Overpass: <a href="https://overpass-api.de" target="_blank" rel="noopener">overpass-api.de</a><br>
       Geographic resolution: individual establishments (point / building centroid).<br>Variables: name, operator, industry tags, address, website, coordinates.<br>Update frequency: continuous (community edited).<br>Limitations: coverage is uneven — smaller firms and depots may be missing or untagged; no employee counts or fleet sizes.<br>
-      ${m?`Endpoint used: <span class="mono tiny">${m.endpoint||m.source}</span><br>Fetched: ${new Date(m.fetchedAt).toLocaleString()} · Raw elements: ${fmt(m.rawCount||0)} · Classified: ${fmt(STATE.all.length)}`:''}</td></tr>
+      ${m?`Loaded from: <span class="mono tiny">${m.source||m.endpoint||'—'}</span><br>Fetched: ${new Date(m.fetchedAt).toLocaleString()} · Classified: ${fmt(STATE.all.length)}`:''}</td></tr>
     <tr><td><b>District boundaries</b></td><td>Berlin Bezirke (12 districts).<br>Source: Geoportal Berlin / OpenStreetMap, via public GeoJSON.<br>Geographic resolution: administrative district.<br>Note: geometry simplified for display; use official boundaries for precise spatial joins.</td></tr>
     </tbody></table>
-    <div class="callout">Ortsteil / LOR boundaries are not bundled in this build (no reachable source at build time). Sub-district structure is instead shown through point density and DBSCAN clustering on real coordinates. The area model is a pluggable layer.</div>`;
+    <div class="callout">Ortsteil / LOR boundaries are not bundled in this build. Sub-district structure is instead shown through point density and DBSCAN clustering on real coordinates. The area model is a pluggable layer.</div>`;
 }
 function explainHTML(){
   const rows=STATE.filtered; const modeName=(MODES.find(m=>m[0]===STATE.mode)||[])[1];
@@ -897,11 +906,10 @@ function loadSnapshotFile(file){ const r=new FileReader();
 function showOverlay(html){ $('#overlay').innerHTML=`<div class="card">${html}</div>`; $('#overlay').classList.add('show'); }
 function hideOverlay(){ $('#overlay').classList.remove('show'); }
 function showLoading(msg){ showOverlay(`<div class="spinner"></div><h3>Loading Berlin fleet data</h3><p id="load-msg">${msg||''}</p>
-  <p class="tiny muted">Querying OpenStreetMap live from your browser. First load can take 10–40s.</p>
   <div id="load-elapsed" class="tiny muted"></div>`); }
 function showError(msg){ setStatus('err','Data error');
   showOverlay(`<h3>Couldn’t load live data</h3><p>${escapeHtml(msg)}</p>
-   <p class="tiny muted">Overpass may be busy, rate-limited, or blocked on your network. You can retry, or load a previously saved snapshot.</p>
+   <p class="tiny muted">The public OpenStreetMap servers can be busy. You can retry, or load a previously saved snapshot.</p>
    <div class="actions"><button class="btn primary" onclick="startFetch()">Retry live fetch</button>
      <button class="btn" onclick="document.getElementById('snapfile').click()">Load snapshot file</button></div>`); }
 function showEmpty(){ showOverlay(`<h3>No companies returned</h3>
@@ -909,6 +917,23 @@ function showEmpty(){ showOverlay(`<h3>No companies returned</h3>
    <div class="actions"><button class="btn primary" onclick="startFetch()">Retry</button></div>`); }
 
 function setStatus(kind,text){ $('#status-dot').className='dot '+(kind||''); $('#status-text').textContent=text; }
+
+// Instant path: load a pre-fetched dataset bundled with the app. Fall back to a live query only if it is absent.
+window.loadInitial=async ()=>{
+  setStatus('busy','Loading…'); showLoading('Loading cached Berlin dataset…');
+  try{
+    const res=await fetch(CONFIG.snapshotUrl,{cache:'no-store'});
+    if(res.ok){
+      const snap=await res.json();
+      if(snap && snap.companies && snap.companies.length){
+        STATE.all=snap.companies.map(c=>({...c, rawTags:c.rawTags||{}}));
+        STATE.meta={...(snap.meta||{}), source:'cached snapshot', fetchedAt:(snap.meta&&snap.meta.fetchedAt)||snap.generatedAt||new Date().toISOString()};
+        onDataReady(); return;
+      }
+    }
+  }catch(e){ /* no bundled snapshot — fall through to a live query */ }
+  startFetch();
+};
 
 window.startFetch=async ()=>{
   hideInterp(); setStatus('busy','Fetching…'); showLoading('Building query…');
@@ -923,7 +948,8 @@ window.startFetch=async ()=>{
 };
 function onDataReady(){
   applyFilters(); buildRail(); renderMode(); renderDashboard();
-  setStatus('ok', `${fmt(STATE.all.length)} companies · ${STATE.meta.source==='snapshot file'?'snapshot':'live'} ${new Date(STATE.meta.fetchedAt).toLocaleDateString()}`);
+  const tag=/snapshot|cached/i.test(STATE.meta.source||'')?'cached':'live';
+  setStatus('ok', `${fmt(STATE.all.length)} companies · ${tag} ${new Date(STATE.meta.fetchedAt).toLocaleDateString()}`);
   hideOverlay();
 }
 
@@ -951,6 +977,6 @@ async function boot(){
   $('#btn-go').onclick=runSearch;
   $('#snapfile').addEventListener('change',e=>{ if(e.target.files[0]) loadSnapshotFile(e.target.files[0]); });
   document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeModal(); closeSide(); } });
-  startFetch();
+  loadInitial();
 }
 document.addEventListener('DOMContentLoaded',boot);
