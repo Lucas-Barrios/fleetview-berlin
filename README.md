@@ -26,12 +26,30 @@ It pulls real businesses from OpenStreetMap, classifies each one's likely fleet 
 
 ---
 
+## Initial research insights
+
+*From a live snapshot of ~2,245 Berlin businesses on 21 Sep 2026. These are directional signals from a single OpenStreetMap pull — fleet likelihood is inferred and fleet/employee sizes are unknown — so treat them as hypotheses to validate, not measured facts. The **Insights** button in the app recomputes all of these live from whatever data you’ve loaded.*
+
+1. **The market is many small fleets, not a few big logistics players.** The “obvious” heavy‑fleet sectors — Logistics + Courier — are only **63 businesses (2.8%)**. The core is dominated by trades / field services (~435), care services (~336) and construction (~174). → A fleet product has to serve the **long tail of small trade and service fleets** — plumbers, electricians, care providers — who don’t call themselves “fleet managers.”
+
+2. **Nearly half the map is adjacent market, not fleet operators.** **1,018 (45%)** of the businesses are auto‑repair / parts shops and builders’ merchants — they *serve* fleets but don’t run them. Core operators number ~1,227. → Counting businesses overstates the operator market; demand sizing must **separate operators from the service economy** around them.
+
+3. **Fleet involvement is thin and uncertain in open data.** Only **239 (11%)** are high fleet‑likelihood; ~60% are low. → Public tags can’t reliably tell you who runs a fleet. A real product needs **operator onboarding or a licensing / telematics feed** — exactly the gap an MDS data layer could fill.
+
+4. **Fleet businesses are dispersed across residential / outer Berlin, not downtown.** The most‑represented districts are Pankow, Charlottenburg‑Wilmersdorf, Reinickendorf and the southern boroughs; the transit‑dense centre (Friedrichshain‑Kreuzberg, Lichtenberg) has fewer. (~19% of points fell outside the boundary polygons — a geocoding limit to fix, not a finding.) → Activity clusters **where people live and where building / repair happen**, not where mobility infrastructure is densest — relevant for linking fleets to MDS mobility data or planning charging / low‑emission zones.
+
+5. **The most valuable data is exactly what’s missing.** ~95% of records have names, ~64% addresses, ~50% websites — but **0% carry fleet size or vehicle mix.** → The high‑value fields (fleet size, vehicles, routes) are absent from open data by definition; the product’s job is to **capture or broker** them, confirming the “translation + contribution layer” framing of the challenge.
+
+6. **Live open‑data querying is too slow and flaky to ship on.** Two of three public Overpass mirrors timed out and the full pull took ~2–3 minutes. → A production MDS product **can’t hit public endpoints live per user** — it needs a cached, governed backend, which is itself part of MDS’s value proposition.
+
+---
+
 ## Quick start
 
 1. Open the **[live tool](https://lucas-barrios.github.io/fleetview-berlin/)** in Chrome or Firefox.
-2. Wait ~10–40s on first load — it's querying all of Berlin live from OpenStreetMap. A "Xs elapsed" counter shows it's working.
+2. Wait ~10–40s on first load (sometimes longer) — it's querying all of Berlin live from OpenStreetMap. A "Xs elapsed" counter shows it's working.
 3. The map fills with businesses, coloured by **fleet likelihood** (red = high, amber = medium, teal = low, grey = unknown).
-4. Use the left panel to filter, switch views, and explore. Click any business or district for detail.
+4. Use the left panel to filter, switch views, and explore. Click any business or district for detail. Open **Insights** for the current findings.
 
 If it ever shows an error instead of loading, the public OpenStreetMap server was probably busy — click **Retry**, or **Load snapshot** (see below).
 
@@ -83,13 +101,14 @@ There's a fuller write‑up of the design decisions and methodology in the share
 
 ## For whoever wants to edit it
 
-It's a plain static site — three files, no build step:
+It's a plain static site — no build step:
 
 | File | What it is |
 |---|---|
 | `index.html` | Page shell; loads Leaflet + our code. |
 | `app.css` | All styling. |
 | `app.js` | Everything else — organised into clear sections: config, **taxonomy** (the classification rules), geo helpers, data layer, analytics (DBSCAN, scoring), the plain‑language parser, map, and UI. |
+| `insights.js` | The **Insights** panel — figures computed live from the loaded data. |
 
 **To change the classification** (add an industry, retag a likelihood): edit the `TAXONOMY` array at the top of `app.js`. It drives both the OSM query *and* the map — one place.
 
@@ -102,8 +121,8 @@ It's a plain static site — three files, no build step:
 ## Roadmap ideas
 
 - Plug in an employee‑size source to activate the **Company size** layer.
-- Add Ortsteil / LOR boundaries for finer‑grained areas.
-- Cache a nightly snapshot so first load is instant.
+- Add Ortsteil / LOR boundaries for finer‑grained areas (and fix the ~19% of points that currently fall outside the district polygons).
+- Cache a nightly snapshot so first load is instant and reliable.
 - Port to the briefed Next.js/TypeScript stack if it graduates beyond a research tool.
 
 ---
